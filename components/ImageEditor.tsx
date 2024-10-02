@@ -1,83 +1,115 @@
-// components/ImageEditor.tsx
-import { useState } from 'react';
-import Draggable from 'react-draggable';
+import { useRef, useEffect, useState } from 'react';
+import Image from 'next/image';
 
-const ImageEditor = ({ backgroundPath, overlayPath }) => {
-  const [overlaySize, setOverlaySize] = useState({ width: 100, height: 100 });
-  const [dragging, setDragging] = useState(false);
+export default function Home() {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
+  const [overlayImage, setOverlayImage] = useState<string | null>(null);
+  const [overlayPosition, setOverlayPosition] = useState({ x: 180, y: 130 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  // Handler to resize the overlay image using mouse
-  const handleMouseDown = (e) => {
-    setDragging(true);
-  };
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
 
-  const handleMouseUp = () => {
-    setDragging(false);
-  };
+    if (canvas && ctx && backgroundImage && overlayImage) {
+      const background = new window.Image();
+      const overlay = new window.Image();
 
-  const handleMouseMove = (e) => {
-    if (dragging) {
-      const newWidth = e.clientX - e.target.offsetLeft;
-      const newHeight = e.clientY - e.target.offsetTop;
-      setOverlaySize({ width: newWidth, height: newHeight });
+      background.src = backgroundImage;
+      overlay.src = overlayImage;
+
+      background.onload = () => {
+        // Draw background image
+        ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
+
+        overlay.onload = () => {
+          // Draw overlay image at current position
+          ctx.drawImage(overlay, overlayPosition.x, overlayPosition.y, 400, 400);
+        };
+      };
+    }
+  }, [backgroundImage, overlayImage, overlayPosition]);
+
+  const handleBackgroundUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setBackgroundImage(URL.createObjectURL(file));
     }
   };
 
+  const handleOverlayUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setOverlayImage(URL.createObjectURL(file));
+    }
+  };
+
+  const handleMouseDown = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    const mouseX = event.clientX - (rect?.left || 0);
+    const mouseY = event.clientY - (rect?.top || 0);
+
+    if (
+      mouseX > overlayPosition.x &&
+      mouseX < overlayPosition.x + 400 &&
+      mouseY > overlayPosition.y &&
+      mouseY < overlayPosition.y + 400
+    ) {
+      setIsDragging(true);
+      setDragStart({ x: mouseX - overlayPosition.x, y: mouseY - overlayPosition.y });
+    }
+  };
+
+  const handleMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (isDragging) {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      const mouseX = event.clientX - (rect?.left || 0);
+      const mouseY = event.clientY - (rect?.top || 0);
+      setOverlayPosition({
+        x: mouseX - dragStart.x,
+        y: mouseY - dragStart.y,
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
   return (
-    <div
-      style={{
-        position: 'relative',
-        width: '800px', // Set the background container size
-        height: '600px',
-      }}
-    >
-      {/* Background Image */}
-      <img
-        src={backgroundPath}
-        alt="Background"
-        style={{ width: '100%', height: '100%' }}
+    <div>
+      <h1>Overlay Image on Canvas</h1>
+
+      <input type="file" accept="image/*" onChange={handleBackgroundUpload} />
+      <input type="file" accept="image/*" onChange={handleOverlayUpload} />
+
+      <canvas
+        ref={canvasRef}
+        width="800"
+        height="600"
+        style={{ border: '1px solid black', cursor: 'move' }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
       />
 
-      {/* Draggable Overlay Image */}
-      <Draggable>
-        <div
-          style={{
-            position: 'absolute',
-            top: '0',
-            left: '0',
-            cursor: 'move',
-            width: `${overlaySize.width}px`,
-            height: `${overlaySize.height}px`,
-          }}
-        >
-          <img
-            src={overlayPath}
-            alt="Overlay"
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              pointerEvents: 'none',
-            }}
-          />
-          <div
-            onMouseDown={handleMouseDown}
-            onMouseUp={handleMouseUp}
-            onMouseMove={handleMouseMove}
-            style={{
-              position: 'absolute',
-              right: '0',
-              bottom: '0',
-              width: '20px',
-              height: '20px',
-              backgroundColor: 'rgba(0, 0, 0, 0.5)',
-              cursor: 'nwse-resize',
-            }}
-          />
-        </div>
-      </Draggable>
+      {/* Optional: Display overlay image for visualization */}
+      {overlayImage && (
+        <Image
+          src={overlayImage}
+          alt="Overlay"
+          layout="intrinsic" // Use 'responsive' if needed
+          style={{ position: 'absolute', left: overlayPosition.x, top: overlayPosition.y }}
+          width={400} // Set appropriate width
+          height={400} // Set appropriate height
+        />
+      )}
+
+      <p>
+        Upload a background image and an overlay image, and drag the overlay on the canvas.
+      </p>
     </div>
   );
-};
-
-export default ImageEditor;
+}
